@@ -54,13 +54,20 @@ h2 {
   color: #222;
 }
 
+.content-wrapper {
+  display: flex;
+  gap: 270px;
+  padding: 40px;
+  align-items: flex-start;
+}
+
 /* === UPLOAD CARD === */
 .upload-wrapper {
   display: flex;
-  justify-content: center;  /* Align box to the left */
+  justify-content: flex-start;  /* Align box to the left */
   align-items: flex-start;          /* Center vertically */
   height: 100vh;                /* Full viewport height */
-  padding-left: 100px;          /* <-- Add gap from the left */
+  padding-left: 300px;          /* <-- Add gap from the left */
 }
 
 .upload-card {
@@ -187,6 +194,48 @@ input[type="file"] {
   text-align: center;
 }
 
+.photo-grid-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.photo-grid-section h2 {
+  font-size: 18px;
+  margin-bottom: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.sub-heading {
+  font-weight: normal;
+  color: #a45dff;
+  font-size: 16px;
+}
+
+/* Grid Itself */
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 140px);
+  grid-auto-rows: 140px;
+  gap: 16px;
+  max-height: 600px;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.photo-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.photo-grid img:hover {
+  transform: scale(1.05);
+}
 
 /* === TIPS SECTION === */
 ul {
