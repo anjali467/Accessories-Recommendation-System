@@ -5,7 +5,9 @@ import numpy as np
 from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from tensorflow.keras.preprocessing import image
 from sklearn.metrics.pairwise import cosine_similarity
+from skimage.transform import PiecewiseAffineTransform, warp
 import cv2
+import math
 import mediapipe as mp
 import matplotlib.pyplot as plt
 from model import model
@@ -69,6 +71,8 @@ def split_accessory_pair(img, mode='horizontal'):
         bottom = img.crop((0, h // 2, w, h))
         left, right = top, bottom
     return left, right
+
+
 
 @app.route("/")
 def index():
@@ -176,6 +180,7 @@ def apply():
     
     user_img_pil = Image.open(user_img_path).convert("RGBA")
     user_img_cv = cv2.cvtColor(np.array(user_img_pil), cv2.COLOR_RGBA2BGR)
+    user_cv = cv2.cvtColor(user_img_cv, cv2.COLOR_BGR2BGRA)
 
     
     # Load user image
@@ -283,7 +288,7 @@ def apply():
         right_earring = crop_top(right_earring, pixels=91)
 
         #scale earrings
-        earring_scale = 0.18
+        earring_scale = 0.14
         left_resized = left_earring.resize((
             int(left_earring.width * earring_scale), int(left_earring.height * earring_scale))
         )
@@ -291,30 +296,34 @@ def apply():
             (int(right_earring.width * earring_scale), int(right_earring.height * earring_scale))
         )
 
-        left_shift = 10
-        right_shift = -10
-        vertical_shift = -5
+        left_shift_x = -3
+        left_shift_y = 15
+        right_shift_x = 1
+        right_shift_y = 17
+        
 
         left_pos = (
-            centers["left_earlobe"][0] - left_resized.width // 2 + left_shift,
-            centers["left_earlobe"][1] + vertical_shift
+            centers["left_earlobe"][0] - left_resized.width // 2 + left_shift_x,
+            centers["left_earlobe"][1] - left_resized.height // 2 + left_shift_y
         )
         right_pos = (
-            centers["right_earlobe"][0] - right_resized.width // 2 + right_shift,
-            centers["right_earlobe"][1] +vertical_shift
+            centers["right_earlobe"][0] - right_resized.width // 2 + right_shift_x,
+            centers["right_earlobe"][1] - right_resized.height // 2 + right_shift_y 
         )
     
         #paste earrings
         user_img_pil.alpha_composite(left_resized, left_pos)
         user_img_pil.alpha_composite(right_resized, right_pos)
-
+       
         #Paste Bracelet
+
     if bracelet_img:
         wrist_width = abs(centers["right_wrist"][0] - centers["right_index"][0])
         target_width = max(int(1.1 * wrist_width), 40)
         scale_factor = target_width / bracelet_img.width
+        scale_factor_y = scale_factor * 1.8
         bracelet_resized = bracelet_img.resize(
-            (target_width, int(bracelet_img.height * scale_factor)),
+            (target_width, int(bracelet_img.height * scale_factor_y)),
             resample = Image.LANCZOS
         )
 
@@ -324,7 +333,6 @@ def apply():
         )
 
         user_img_pil.alpha_composite(bracelet_resized, bracelet_pos)
-
         
 
 
@@ -333,17 +341,32 @@ def apply():
         #purse_resized = purse_img.resize((100, 100))
         #user_img_pil.alpha_composite(purse_resized, (centers["right_index"][0] - 50, centers["right_index"][1]))
     if purse_img:
-        purse_shift_y = 30
-        purse_pos = (
-            centers["hand"][0] - int(purse_img.width * 0.45) // 2,
-            centers["hand"][1] + purse_shift_y    
-        )
+        right_index = get_xy(mp_pose.PoseLandmark.RIGHT_INDEX.value)
+        dx = right_index[0] - right_wrist[0]
+        dy = right_index[1] - right_wrist[1]
+    
+
+        hand_length = math.hypot(dx, dy)
+        target_purse_width = int(hand_length * 4.5)
+        scale_factor = target_purse_width / purse_img.width
 
         purse_resized = purse_img.resize(
-            (int(purse_img.width * 0.45), int(purse_img.height * 0.45 )),
+            (target_purse_width, int(purse_img.height * scale_factor)),
             resample = Image.LANCZOS
         )
-        user_img_pil.alpha_composite(purse_resized, purse_pos)
+
+        purse_np = np.array(purse_resized)
+        alpha_channel = purse_np[:, :, 3]
+
+        for top_y in range(alpha_channel.shape[0]):
+            if np.any(alpha_channel[top_y] > 10):
+                break
+            else:
+                top_y = 0
+        paste_x = right_index[0] - purse_resized.width // 2
+        paste_y = right_index[1] - top_y + 5
+        user_img_pil.alpha_composite(purse_resized, (paste_x, paste_y))
+
 
     # Paste footwear (left and right)
     #shoe_resized = footwear_img.resize((80, 80))
@@ -362,7 +385,7 @@ def apply():
         nose_top = get_xy(mp_pose.PoseLandmark.NOSE.value)
 
         face_width = abs(right_eye[0] - left_eye[0])
-        target_width = int(2.0 * face_width)
+        target_width = int(2.4 * face_width)
         scale_factor = target_width / goggle_img.width
 
         goggle_resized = goggle_img.resize(
@@ -371,15 +394,14 @@ def apply():
         )
 
         # Align center of goggles to top of nose, move slightly up/down if needed
-        vertical_offset = -10  # tweak if nose point is too high
+        vertical_offset = -int(0.15 * goggle_resized.height) # tweak if nose point is too high
         goggle_pos = (
             nose_top[0] - goggle_resized.width // 2,
             nose_top[1] - goggle_resized.height // 2 + vertical_offset
         )
 
-    user_img_pil.alpha_composite(goggle_resized, goggle_pos)
+        user_img_pil.alpha_composite(goggle_resized, goggle_pos)
 
-       
 
     if necklace_img:
         def crop_top_padding(img, alpha_tresh=10):
@@ -390,8 +412,7 @@ def apply():
                     return img.crop((0, row, img.width, img.height))
             return img
     
-        necklace_img = crop_top_padding(necklace_img)
-    
+        necklace_img = crop_top_padding(necklace_img)  
         chin_width = abs(right_ear[0] - left_ear[0])
         neck_center_x = (jaw_right[0] + jaw_left[0]) // 2
         collarbone_y = (jaw_right[1] + jaw_left[1]) // 2
@@ -404,10 +425,11 @@ def apply():
         )
 
         rotated_necklace = resized_necklace.rotate(2, expand=True)
-        necklace_y = collarbone_y + int(0.45 * chin_width)
-
+        necklace_y = collarbone_y + int(0.5 * chin_width)
         paste_x = neck_center_x - rotated_necklace.width // 2
-        paste_y = necklace_y + int(0.2 * chin_width)
+        paste_y = necklace_y + int(0.5 * chin_width)
+
+        #center = (paste_x + rotated_necklace.width // 2, paste_y + rotated_necklace.height // 2)
 
         user_img_pil.alpha_composite(rotated_necklace, (paste_x, paste_y)) 
 

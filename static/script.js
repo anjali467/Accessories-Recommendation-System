@@ -125,11 +125,13 @@ document.addEventListener("DOMContentLoaded", function () {
       alert("Please select at least one accessory.");
       return;
     }
-
+    
     const selectedAccessories = {};
+    
     Array.from(checkedAccessories).forEach(cb => {
       selectedAccessories[cb.dataset.type] = cb.value;
     });
+
 
     const applyRes = await fetch("/apply", {
       method: "POST",
