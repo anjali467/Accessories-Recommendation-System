@@ -1,26 +1,17 @@
-# Use official Python image
-FROM python:3.13.7
+FROM python:3.10-slim
 
-# Install system dependencies needed by mediapipe and others
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libsm6 \
     libxext6 \
     libgl1 \
-    && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /app
-
-# Copy project files into the container
-COPY . .
-
-# Install Python dependencies
+COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Expose the port your app will run on (Render sets PORT env var)
-EXPOSE 10000
+COPY . /app
+WORKDIR /app
 
-# Run the app with gunicorn
-CMD ["gunicorn", "-b", "0.0.0.0:10000", "app:app"]
+CMD ["python", "app.py"]
