@@ -1,5 +1,5 @@
 # Use official Python image
-FROM python:3.8.10
+FROM python:3.13.7
 
 # Install system dependencies needed by mediapipe and others
 RUN apt-get update && apt-get install -y \
